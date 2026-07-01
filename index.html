@@ -290,8 +290,8 @@
   <body>
     <div class="card">
       <div id="player-host">
-        <div class="placeholder">🎵 곡을 선택하면 여기서 재생돼요</div>
         <div id="yt"></div>
+        <div class="placeholder">🎵 곡을 선택하면 여기서 재생돼요</div>
       </div>
       <div class="meta">
         <div class="t" id="title">플레이리스트 비었어요</div>
@@ -412,8 +412,9 @@
       waitForFirebase();
 
       /* ---------- YouTube ---------- */
-      window.onYouTubeIframeAPIReady = function () {
-        console.log('[YT] API 준비됨, 플레이어 생성');
+      function createYTPlayer() {
+        if (player) return; // 중복 생성 방지
+        console.log('[YT] 플레이어 생성 시작');
         player = new YT.Player('yt', {
           height: '100%',
           width: '100%',
@@ -427,7 +428,22 @@
             onError: (e) => console.error('[YT] 에러:', e.data),
           },
         });
+      }
+      // 경우 1: 유튜브 API가 나중에 로드되면 이 함수를 호출
+      window.onYouTubeIframeAPIReady = function () {
+        console.log('[YT] API 준비됨(콜백)');
+        createYTPlayer();
       };
+      // 경우 2: 유튜브 API가 이미 로드돼 있으면 직접 생성 (준비 안 됐으면 재시도)
+      (function tryDirectCreate(n) {
+        if (player) return;
+        if (window.YT && window.YT.Player) {
+          console.log('[YT] API 이미 로드됨 - 직접 생성');
+          createYTPlayer();
+        } else if (n < 25) {
+          setTimeout(() => tryDirectCreate(n + 1), 200);
+        }
+      })(0);
       function onState(e) {
         const S = YT.PlayerState;
         if (e.data === S.ENDED) playNext();
