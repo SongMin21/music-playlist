@@ -1,0 +1,491 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Playlist</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family:
+          'Courier New',
+          -apple-system,
+          'Apple SD Gothic Neo',
+          sans-serif;
+        background: #fff;
+        padding: 10px;
+        color: #4a4a48;
+      }
+      .card {
+        max-width: 330px;
+        margin: 0 auto;
+        background: #e8f4fb;
+        border-radius: 16px;
+        box-shadow: 0 8px 20px rgba(210, 228, 240, 0.9);
+        padding: 16px;
+      }
+
+      /* ---- 플레이어 상단 ---- */
+      .player {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 12px;
+      }
+      .art {
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        object-fit: cover;
+        background: #d5e9f5;
+        flex-shrink: 0;
+        animation: spin 8s linear infinite;
+        animation-play-state: paused;
+      }
+      .art.playing {
+        animation-play-state: running;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      .meta {
+        flex: 1;
+        min-width: 0;
+      }
+      .meta .t {
+        font-size: 13px;
+        font-weight: bold;
+        color: #3a3a38;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .meta .s {
+        font-size: 11px;
+        color: #5b9bc4;
+        margin-top: 2px;
+      }
+
+      /* 진행바 */
+      .bar {
+        height: 4px;
+        background: #d5e6f2;
+        border-radius: 4px;
+        margin: 10px 0;
+        overflow: hidden;
+      }
+      .bar > i {
+        display: block;
+        height: 100%;
+        width: 0;
+        background: #4aa3e0;
+        transition: width 0.3s linear;
+      }
+
+      /* 컨트롤 */
+      .ctrl {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 18px;
+        margin-bottom: 12px;
+      }
+      .ctrl button {
+        border: 0;
+        background: none;
+        cursor: pointer;
+        color: #7bb8dd;
+        font-size: 15px;
+        line-height: 1;
+      }
+      .ctrl button:hover {
+        color: #4aa3e0;
+      }
+      .ctrl .play {
+        width: 38px;
+        height: 38px;
+        border-radius: 50%;
+        background: #4aa3e0;
+        color: #fff;
+        font-size: 15px;
+        box-shadow: 0 4px 8px rgba(74, 163, 224, 0.35);
+      }
+      .ctrl .play:hover {
+        color: #fff;
+        background: #3593d4;
+      }
+      .ctrl .loop.on {
+        color: #4aa3e0;
+      }
+
+      /* ---- 입력 ---- */
+      .add {
+        display: flex;
+        gap: 6px;
+        margin-bottom: 10px;
+      }
+      .add input {
+        flex: 1;
+        min-width: 0;
+        border: 1px solid #c5e0f0;
+        background: #fff;
+        border-radius: 20px;
+        padding: 7px 12px;
+        font-size: 12px;
+        font-family: inherit;
+        outline: none;
+        color: #4a4a48;
+      }
+      .add input:focus {
+        border-color: #4aa3e0;
+      }
+      .add button {
+        border: 0;
+        border-radius: 20px;
+        background: #4aa3e0;
+        color: #fff;
+        padding: 0 14px;
+        font-size: 12px;
+        font-weight: bold;
+        cursor: pointer;
+        font-family: inherit;
+      }
+      .add button:hover {
+        background: #3593d4;
+      }
+
+      /* ---- 리스트 ---- */
+      ul {
+        list-style: none;
+        max-height: 170px;
+        overflow-y: auto;
+      }
+      ul::-webkit-scrollbar {
+        width: 5px;
+      }
+      ul::-webkit-scrollbar-thumb {
+        background: #cfe4f2;
+        border-radius: 4px;
+      }
+      li {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 4px;
+        cursor: pointer;
+        border-bottom: 1px solid #dcecf7;
+        font-size: 12px;
+      }
+      li:hover {
+        background: #d9ecf9;
+        border-radius: 8px;
+      }
+      li.active {
+        background: #b9dcf3;
+        border-radius: 8px;
+      }
+      li img {
+        width: 40px;
+        height: 24px;
+        object-fit: cover;
+        border-radius: 4px;
+        flex-shrink: 0;
+      }
+      li .name {
+        flex: 1;
+        min-width: 0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      li .x {
+        color: #8dbfdf;
+        font-size: 13px;
+        flex-shrink: 0;
+        padding: 0 3px;
+      }
+      li .x:hover {
+        color: #e03e3e;
+      }
+
+      .status {
+        text-align: center;
+        font-size: 10px;
+        color: #5b9bc4;
+        margin-top: 8px;
+      }
+      #player-host {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        opacity: 0;
+        pointer-events: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <div class="player">
+        <img
+          id="art"
+          class="art"
+          src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60'%3E%3Crect width='60' height='60' fill='%23d5e9f5'/%3E%3C/svg%3E"
+          alt=""
+        />
+        <div class="meta">
+          <div class="t" id="title">플레이리스트 비었어요</div>
+          <div class="s" id="sub">유튜브 링크를 추가해보세요</div>
+        </div>
+      </div>
+
+      <div class="bar"><i id="prog"></i></div>
+
+      <div class="ctrl">
+        <button id="prev" title="이전">⏮</button>
+        <button id="play" class="play" title="재생/일시정지">▶</button>
+        <button id="next" title="다음">⏭</button>
+        <button id="loop" class="loop" title="반복">🔁</button>
+      </div>
+
+      <div class="add">
+        <input id="url" type="text" placeholder="유튜브 링크 붙여넣기" />
+        <button id="addBtn">추가</button>
+      </div>
+
+      <ul id="list"></ul>
+      <div class="status" id="status">● 연결 중…</div>
+    </div>
+
+    <div id="player-host"><div id="yt"></div></div>
+
+    <!-- Firebase -->
+    <script type="module">
+      // import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+      import { initializeApp } from 'firebase/app';
+      import {
+        getDatabase,
+        ref,
+        onValue,
+        set,
+      } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js';
+
+      const firebaseConfig = {
+        apiKey: 'AIzaSyC9mpi2MlCLZM_W_4GjlUPT9sOADSQM7TE',
+        authDomain: 'music-play-4ecb7.firebaseapp.com',
+        databaseURL:
+          'https://music-play-4ecb7-default-rtdb.asia-southeast1.firebasedatabase.app',
+        projectId: 'music-play-4ecb7',
+        storageBucket: 'music-play-4ecb7.firebasestorage.app',
+        messagingSenderId: '723841806246',
+        appId: '1:723841806246:web:26419a571b479465236967',
+      };
+
+      const app = initializeApp(firebaseConfig);
+      const db = getDatabase(app);
+      const listRef = ref(db, 'playlist'); // 팀 공용 플레이리스트 경로
+
+      // 전역으로 노출 (아래 일반 스크립트에서 사용)
+      window.__fb = {
+        subscribe: (cb) => onValue(listRef, (snap) => cb(snap.val() || [])),
+        save: (arr) => set(listRef, arr),
+      };
+      window.dispatchEvent(new Event('fb-ready'));
+    </script>
+
+    <!-- YouTube API -->
+    <script src="https://www.youtube.com/iframe_api"></script>
+    <script>
+      let player,
+        ytReady = false,
+        fbReady = false;
+      let playlist = []; // [{id, title}]
+      let current = -1,
+        loop = false,
+        progTimer = null;
+
+      /* ---------- YouTube ---------- */
+      function onYouTubeIframeAPIReady() {
+        player = new YT.Player('yt', {
+          height: '1',
+          width: '1',
+          playerVars: { autoplay: 0, rel: 0 },
+          events: {
+            onReady: () => {
+              ytReady = true;
+            },
+            onStateChange: onState,
+          },
+        });
+      }
+      function onState(e) {
+        const S = YT.PlayerState;
+        if (e.data === S.ENDED) playNext();
+        if (e.data === S.PLAYING) {
+          setPlayIcon(true);
+          startProg();
+        }
+        if (e.data === S.PAUSED) {
+          setPlayIcon(false);
+          stopProg();
+        }
+      }
+      function setPlayIcon(on) {
+        document.getElementById('play').textContent = on ? '⏸' : '▶';
+        document.getElementById('art').classList.toggle('playing', on);
+      }
+      function startProg() {
+        stopProg();
+        progTimer = setInterval(() => {
+          if (!player.getDuration) return;
+          const d = player.getDuration(),
+            c = player.getCurrentTime();
+          if (d)
+            document.getElementById('prog').style.width = (c / d) * 100 + '%';
+        }, 500);
+      }
+      function stopProg() {
+        if (progTimer) clearInterval(progTimer);
+      }
+
+      /* ---------- URL 파싱 / 제목 ---------- */
+      function extractId(url) {
+        url = (url || '').trim();
+        const ps = [
+          /(?:youtube\.com\/watch\?v=)([\w-]{11})/,
+          /(?:youtu\.be\/)([\w-]{11})/,
+          /(?:youtube\.com\/embed\/)([\w-]{11})/,
+          /(?:youtube\.com\/shorts\/)([\w-]{11})/,
+          /^([\w-]{11})$/,
+        ];
+        for (const p of ps) {
+          const m = url.match(p);
+          if (m) return m[1];
+        }
+        return null;
+      }
+      async function fetchTitle(id) {
+        try {
+          const r = await fetch(
+            `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${id}&format=json`,
+          );
+          if (r.ok) return (await r.json()).title;
+        } catch (e) {}
+        return '제목 없음';
+      }
+
+      /* ---------- 동작 ---------- */
+      async function addSong() {
+        const input = document.getElementById('url');
+        const id = extractId(input.value);
+        if (!id) {
+          alert('유효한 유튜브 링크가 아니에요.');
+          return;
+        }
+        input.value = '';
+        const title = await fetchTitle(id);
+        playlist.push({ id, title });
+        saveRemote(); // Firebase에 저장 → 팀원에게도 전파
+      }
+      function saveRemote() {
+        if (fbReady) window.__fb.save(playlist);
+        render();
+      }
+
+      function render() {
+        const ul = document.getElementById('list');
+        ul.innerHTML = '';
+        playlist.forEach((s, i) => {
+          const li = document.createElement('li');
+          if (i === current) li.className = 'active';
+          li.innerHTML = `<img src="https://i.ytimg.com/vi/${s.id}/default.jpg" alt="">
+         <span class="name">${s.title}</span>
+         <span class="x" data-i="${i}">✕</span>`;
+          li.querySelector('.name').onclick = () => play(i);
+          li.querySelector('img').onclick = () => play(i);
+          li.querySelector('.x').onclick = (e) => {
+            e.stopPropagation();
+            remove(i);
+          };
+          ul.appendChild(li);
+        });
+      }
+
+      function play(i) {
+        if (!ytReady || !playlist[i]) return;
+        current = i;
+        player.loadVideoById(playlist[i].id);
+        const s = playlist[i];
+        document.getElementById('title').textContent = s.title;
+        document.getElementById('sub').textContent = 'now playing';
+        document.getElementById('art').src =
+          `https://i.ytimg.com/vi/${s.id}/mqdefault.jpg`;
+        render();
+      }
+      function togglePlay() {
+        if (current === -1 && playlist.length) {
+          play(0);
+          return;
+        }
+        const st = player.getPlayerState();
+        if (st === YT.PlayerState.PLAYING) player.pauseVideo();
+        else player.playVideo();
+      }
+      function playNext() {
+        if (current + 1 < playlist.length) play(current + 1);
+        else if (loop && playlist.length) play(0);
+        else {
+          setPlayIcon(false);
+          stopProg();
+        }
+      }
+      function playPrev() {
+        if (current > 0) play(current - 1);
+        else if (loop && playlist.length) play(playlist.length - 1);
+      }
+      function remove(i) {
+        playlist.splice(i, 1);
+        if (i === current) {
+          current = -1;
+          if (player && player.stopVideo) player.stopVideo();
+          document.getElementById('title').textContent = playlist.length
+            ? '곡을 선택하세요'
+            : '플레이리스트 비었어요';
+          document.getElementById('sub').textContent = '';
+          document.getElementById('prog').style.width = '0';
+        } else if (i < current) current--;
+        saveRemote();
+      }
+
+      /* ---------- Firebase 동기화 ---------- */
+      window.addEventListener('fb-ready', () => {
+        fbReady = true;
+        document.getElementById('status').textContent = '● 팀 공유 연결됨';
+        window.__fb.subscribe((remote) => {
+          // 원격 변경을 로컬에 반영 (재생 위치는 유지)
+          playlist = Array.isArray(remote) ? remote : [];
+          render();
+        });
+      });
+
+      /* ---------- 버튼 바인딩 ---------- */
+      document.getElementById('addBtn').onclick = addSong;
+      document.getElementById('url').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') addSong();
+      });
+      document.getElementById('play').onclick = togglePlay;
+      document.getElementById('next').onclick = playNext;
+      document.getElementById('prev').onclick = playPrev;
+      document.getElementById('loop').onclick = function () {
+        loop = !loop;
+        this.classList.toggle('on', loop);
+      };
+    </script>
+  </body>
+</html>
