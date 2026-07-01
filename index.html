@@ -28,8 +28,6 @@
         box-shadow: 0 8px 20px rgba(210, 228, 240, 0.9);
         padding: 16px;
       }
-
-      /* ---- 플레이어 상단 ---- */
       .player {
         display: flex;
         align-items: center;
@@ -71,8 +69,6 @@
         color: #5b9bc4;
         margin-top: 2px;
       }
-
-      /* 진행바 */
       .bar {
         height: 4px;
         background: #d5e6f2;
@@ -87,8 +83,6 @@
         background: #4aa3e0;
         transition: width 0.3s linear;
       }
-
-      /* 컨트롤 */
       .ctrl {
         display: flex;
         align-items: center;
@@ -120,11 +114,46 @@
         color: #fff;
         background: #3593d4;
       }
-      .ctrl .loop.on {
-        color: #4aa3e0;
+      .loop-row {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        margin-bottom: 12px;
       }
-
-      /* ---- 입력 ---- */
+      .loop-label {
+        font-size: 11px;
+        color: #5b9bc4;
+      }
+      .switch {
+        width: 38px;
+        height: 20px;
+        border-radius: 20px;
+        border: 0;
+        background: #cfe0ec;
+        cursor: pointer;
+        position: relative;
+        padding: 0;
+        transition: background 0.2s;
+        flex-shrink: 0;
+      }
+      .switch .knob {
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: #fff;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+        transition: left 0.2s;
+      }
+      .switch.on {
+        background: #4aa3e0;
+      }
+      .switch.on .knob {
+        left: 20px;
+      }
       .add {
         display: flex;
         gap: 6px;
@@ -159,8 +188,6 @@
       .add button:hover {
         background: #3593d4;
       }
-
-      /* ---- 리스트 ---- */
       ul {
         list-style: none;
         max-height: 170px;
@@ -213,7 +240,6 @@
       li .x:hover {
         color: #e03e3e;
       }
-
       .status {
         text-align: center;
         font-size: 10px;
@@ -244,31 +270,39 @@
           <div class="s" id="sub">유튜브 링크를 추가해보세요</div>
         </div>
       </div>
-
       <div class="bar"><i id="prog"></i></div>
-
       <div class="ctrl">
         <button id="prev" title="이전">⏮</button>
         <button id="play" class="play" title="재생/일시정지">▶</button>
         <button id="next" title="다음">⏭</button>
-        <button id="loop" class="loop" title="반복">🔁</button>
       </div>
 
+      <div class="loop-row">
+        <span class="loop-label">반복 재생</span>
+        <button
+          id="loop"
+          class="switch"
+          role="switch"
+          aria-checked="false"
+          title="반복"
+        >
+          <span class="knob"></span>
+        </button>
+      </div>
       <div class="add">
         <input id="url" type="text" placeholder="유튜브 링크 붙여넣기" />
         <button id="addBtn">추가</button>
       </div>
-
       <ul id="list"></ul>
       <div class="status" id="status">● 연결 중…</div>
     </div>
 
     <div id="player-host"><div id="yt"></div></div>
 
-    <!-- Firebase -->
+    <!-- Firebase (module) -->
     <script type="module">
+      console.log('[FB] module 시작');
       import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
-      // import { initializeApp } from 'firebase/app';
       import {
         getDatabase,
         ref,
@@ -287,16 +321,27 @@
         appId: '1:723841806246:web:26419a571b479465236967',
       };
 
-      const app = initializeApp(firebaseConfig);
-      const db = getDatabase(app);
-      const listRef = ref(db, 'playlist'); // 팀 공용 플레이리스트 경로
-
-      // 전역으로 노출 (아래 일반 스크립트에서 사용)
-      window.__fb = {
-        subscribe: (cb) => onValue(listRef, (snap) => cb(snap.val() || [])),
-        save: (arr) => set(listRef, arr),
-      };
-      window.dispatchEvent(new Event('fb-ready'));
+      try {
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+        const listRef = ref(db, 'playlist');
+        // 이벤트 대신 전역 객체에 직접 등록 (타이밍 문제 제거)
+        window.__fb = {
+          subscribe: (cb) =>
+            onValue(
+              listRef,
+              (snap) => cb(snap.val() || []),
+              (err) => console.error('[FB] read 실패:', err),
+            ),
+          save: (arr) =>
+            set(listRef, arr)
+              .then(() => console.log('[FB] 저장 성공'))
+              .catch((err) => console.error('[FB] 저장 실패:', err)),
+        };
+        console.log('[FB] 초기화 완료, __fb 준비됨');
+      } catch (err) {
+        console.error('[FB] 초기화 실패:', err);
+      }
     </script>
 
     <!-- YouTube API -->
@@ -305,10 +350,27 @@
       let player,
         ytReady = false,
         fbReady = false;
-      let playlist = []; // [{id, title}]
+      let playlist = [];
       let current = -1,
         loop = false,
         progTimer = null;
+
+      /* ---------- Firebase 연결 대기 (폴링) ---------- */
+      function waitForFirebase() {
+        if (window.__fb) {
+          fbReady = true;
+          document.getElementById('status').textContent = '● 팀 공유 연결됨';
+          console.log('[APP] Firebase 연결됨, 구독 시작');
+          window.__fb.subscribe((remote) => {
+            playlist = Array.isArray(remote) ? remote : [];
+            console.log('[APP] 원격 데이터 수신, 곡 수:', playlist.length);
+            render();
+          });
+        } else {
+          setTimeout(waitForFirebase, 200); // 준비될 때까지 재시도
+        }
+      }
+      waitForFirebase();
 
       /* ---------- YouTube ---------- */
       function onYouTubeIframeAPIReady() {
@@ -391,13 +453,13 @@
         input.value = '';
         const title = await fetchTitle(id);
         playlist.push({ id, title });
-        saveRemote(); // Firebase에 저장 → 팀원에게도 전파
+        saveRemote();
       }
       function saveRemote() {
-        if (fbReady) window.__fb.save(playlist);
+        if (fbReady && window.__fb) window.__fb.save(playlist);
+        else console.warn('[APP] Firebase 미연결 상태 - 저장 안 됨');
         render();
       }
-
       function render() {
         const ul = document.getElementById('list');
         ul.innerHTML = '';
@@ -416,7 +478,6 @@
           ul.appendChild(li);
         });
       }
-
       function play(i) {
         if (!ytReady || !playlist[i]) return;
         current = i;
@@ -463,17 +524,6 @@
         saveRemote();
       }
 
-      /* ---------- Firebase 동기화 ---------- */
-      window.addEventListener('fb-ready', () => {
-        fbReady = true;
-        document.getElementById('status').textContent = '● 팀 공유 연결됨';
-        window.__fb.subscribe((remote) => {
-          // 원격 변경을 로컬에 반영 (재생 위치는 유지)
-          playlist = Array.isArray(remote) ? remote : [];
-          render();
-        });
-      });
-
       /* ---------- 버튼 바인딩 ---------- */
       document.getElementById('addBtn').onclick = addSong;
       document.getElementById('url').addEventListener('keydown', (e) => {
@@ -485,6 +535,7 @@
       document.getElementById('loop').onclick = function () {
         loop = !loop;
         this.classList.toggle('on', loop);
+        this.setAttribute('aria-checked', loop ? 'true' : 'false');
       };
     </script>
   </body>
